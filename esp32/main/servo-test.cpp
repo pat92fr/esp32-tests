@@ -178,7 +178,7 @@ extern "C" void app_main(void)
         uint64_t max_timing = 0;
         float mean_timing = 0.0f;
         u8 servoIDs[] {1,2,3,4,5,6,7,8,9,10,11,12};
-        u16 position = 600;
+        u16 position = 500;
         u16 servoPositions[] {position,position,position,position,position,position,position,position,position,position,position,position};
 
         for(;;)
