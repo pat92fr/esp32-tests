@@ -17,6 +17,8 @@
 #include "nvs_flash.h"
 #include "driver/i2c.h"
 
+#include "driver/uart.h"
+
 static const char* TAG = "servo_tests";
 
 #define I2C_MASTER_FREQ_HZ          400000                     /*!< I2C master clock frequency */
@@ -119,6 +121,29 @@ extern "C" void app_main(void)
 #error Unsupported console type
 #endif
 
-    ESP_ERROR_CHECK(esp_console_start_repl(repl));
+
+    //ESP_ERROR_CHECK(esp_console_start_repl(repl));
+    for(;;)
+    {
+        static char const * test_str = "This is a test string.\n";
+        uart_write_bytes(CONFIG_ESP_CONSOLE_UART_NUM, (const char*)test_str, strlen(test_str));
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }
+
+
+    // TODO : test send pos+vel timing at 500kbps, with and w/o ring buffer
+    // TODO : test send pos+vel and rcv feedback timing at 500kbps, with and w/o ring buffer
+    // TODO : test send pos+vel timing at 1Mbps.
+    // TODO : test send pos+vel and rcv feedback timing at 1Mbps.
+    // TODO : communication about performances
+
+    // TODO desactiver return ACK
+
+    // TODO : timing of a sequence of 12 set pos+vel
+    // TODO : timing of a sequence of 12 set pos+vel and feedback
+    // TODO : communication about frequency (>200Hz)
+
+    // TODO : rendre configurable la priode de récupération du feedback
+
 
 }
