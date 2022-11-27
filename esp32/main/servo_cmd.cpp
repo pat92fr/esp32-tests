@@ -19,61 +19,6 @@ static const char *TAG = "SERVOCMD";
 static uint64_t start_time = 0;
 static uint64_t end_time = 0;
 
-static int servo_cmd_set_write_type_gen(int argc, char **argv)
-{
-    servo.write_type = swt_gen;
-    return 0;
-}
-
-static void register_servo_cmd_set_write_type_gen(void)
-{
-    const esp_console_cmd_t cmd_set_write_type_gen = {
-        .command = "servo-wt-gen",
-        .help = "Set servo write type to gen",
-        .hint = NULL,
-        .func = &servo_cmd_set_write_type_gen,
-        .argtable = NULL
-    };
-    ESP_ERROR_CHECK( esp_console_cmd_register(&cmd_set_write_type_gen) );
-}
-
-static int servo_cmd_set_write_type_reg(int argc, char **argv)
-{
-    servo.write_type = swt_reg;
-    return 0;
-}
-
-static void register_servo_cmd_set_write_type_reg(void)
-{
-    const esp_console_cmd_t cmd_set_write_type_reg = {
-        .command = "servo-wt-reg",
-        .help = "Set servo write type to reg",
-        .hint = NULL,
-        .func = &servo_cmd_set_write_type_reg,
-        .argtable = NULL
-    };
-    ESP_ERROR_CHECK( esp_console_cmd_register(&cmd_set_write_type_reg) );
-}
-
-static int servo_cmd_set_write_type_sync(int argc, char **argv)
-{
-    //servo.write_type = swt_sync;
-    printf("Not implemented yet!!!\r\n");
-    return 0;
-}
-
-static void register_servo_cmd_set_write_type_sync(void)
-{
-    const esp_console_cmd_t cmd_set_write_type_sync = {
-        .command = "servo-wt-sync",
-        .help = "Set servo write type to sync",
-        .hint = NULL,
-        .func = &servo_cmd_set_write_type_sync,
-        .argtable = NULL
-    };
-    ESP_ERROR_CHECK( esp_console_cmd_register(&cmd_set_write_type_sync) );
-}
-
 static int servo_cmd_disable(int argc, char **argv)
 {
     servo.disable();
@@ -910,9 +855,6 @@ static void register_servo_cmd_ReadCurrent(void)
 
 void register_servo_cmds(void)
 {
-    register_servo_cmd_set_write_type_gen();
-    register_servo_cmd_set_write_type_reg();
-    register_servo_cmd_set_write_type_sync();
     register_servo_cmd_disable();
     register_servo_cmd_enable();
     register_servo_cmd_isEnabled();

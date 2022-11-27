@@ -33,13 +33,12 @@ SERVO::SERVO() {
 #elif SOC_UART_SUPPORT_XTAL_CLK
     uart_config.source_clk = UART_SCLK_XTAL;
 #endif
-    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_1, 2*1024, 0, 0, NULL, 0));
+    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_1, 1024, 1024, 0, NULL, 0));
     ESP_ERROR_CHECK(uart_param_config(UART_NUM_1, &uart_config));
     ESP_ERROR_CHECK(uart_set_pin(UART_NUM_1, 4, 5, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
     this->uart_port_num = UART_NUM_1;
     this->disable();
     this->disableTorque();
-    write_type = swt_gen;
 }
 
 void SERVO::disable() {
@@ -97,26 +96,62 @@ int SERVO::setPosition(u8 servoID, u16 position, u16 speed) {
     int retry_counter = retries;
 
     for( int i=0; i<retry_counter; i++) {
-        switch(write_type) {
-            case swt_gen:
-                this->WritePos(servoID, position, speed);
-		break;
-            case swt_reg:
-                this->RegWritePos(servoID, position, speed);
-		break;
-            default:
-		break;
-	}
-	if(!this->Err) { 
-	    return i;
-        }
-	else {
+        WritePos(servoID, position, 0, speed); // fixed pat92fr
+    	if(!Err) { 
+    	    return i;
+            }
+    	else {
             ESP_LOGI(TAG, "Retrying WritePos((%d)", servoID);
             vTaskDelay(20 / portTICK_PERIOD_MS);
-	}
+    	}
     }
-
     return 999; //too many retries
+}
+
+int SERVO::setPositionFast(u8 servoID, u16 position)
+{
+    u8 bBuf[2] {0};
+    Host2SCS(bBuf+0, bBuf+1, position);
+    return genWrite(servoID, SCSCL_GOAL_POSITION_L, bBuf, 2);
+}
+
+void SERVO::setPosition12(u8 const servoIDs[], u16 const servoPositions[])
+{
+//#define __USE_SCSCL_API
+#ifdef __USE_SCSCL_API
+    static u8 const L = 2; // two bytes sent to each servo
+    static size_t const N {12};                     // Servo Number
+    u8 bBuf[L*N];
+    for(size_t i = 0; i<N; ++i) {
+        Host2SCS(bBuf+i*L+0, bBuf+i*L+1, servoPositions[i]);
+    }
+    syncWrite((u8*)servoIDs, N, SCSCL_GOAL_POSITION_L, bBuf, 2);  
+#else
+    // prepare write sync frame
+    static size_t const L {2};                      // Length of data sent to each servo
+    static size_t const N {12};                     // Servo Number
+    static size_t const Length {(L+1)*N+4};         // Length field value
+    static size_t const buffer_size {2+1+1+Length}; // 0xFF 0xFF ID LENGTH (INSTR PARAM... CHK)
+    // header with Start of Frame, ID, Length, Instruction, and first parameters : Register address and L
+    static u8 buffer[buffer_size] {0xFF,0xFF,0xFE,Length,INST_SYNC_WRITE,SCSCL_GOAL_POSITION_L,L};
+    // fill following parameters
+    size_t index {7};
+    for(size_t servo_index=0; servo_index<N; ++servo_index) {
+        buffer[index++] = servoIDs[servo_index];            // Parameter 3 = Servo Number
+        buffer[index++] = (servoPositions[servo_index]>>8); // Write the first data of the first servo
+        buffer[index++] = (servoPositions[servo_index]&0xff);
+    }
+    // compute checksum
+    u8 chk_sum = 0;
+    for(size_t chk_index=2; chk_index<(buffer_size-1); ++chk_index) {
+        chk_sum += buffer[chk_index];
+    }
+    buffer[index++] = ~chk_sum;
+    // send frame to uart
+    rFlushSCS();
+    writeSCS(buffer,buffer_size);
+    wFlushSCS();
+#endif    
 }
 
 bool SERVO::checkPosition(u8 servoID, u16 position, int accuracy = 5) {

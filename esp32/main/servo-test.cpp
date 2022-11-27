@@ -17,7 +17,12 @@
 #include "nvs_flash.h"
 #include "driver/i2c.h"
 
+// Pat92fr
+#include "esp_timer.h"
 #include "driver/uart.h"
+#include "mini_pupper_servos.h"
+extern SERVO servo;
+// Pat92fr
 
 static const char* TAG = "servo_tests";
 
@@ -123,12 +128,85 @@ extern "C" void app_main(void)
 
 
     //ESP_ERROR_CHECK(esp_console_start_repl(repl));
-    for(;;)
+
+
+
+    // Pat92fr
+    // Pat92fr
+    // Pat92fr
+
+    servo.enable();
+    servo.enableTorque();
+
+    // PERFTEST #1 : one servo timing
+    // Results setPosition    : Time: 844us < 880us < 1075us
+    // Results setPositionFast: Time: 716us < 751us < 941us
+    if(false)
     {
-        static char const * test_str = "This is a test string.\n";
-        uart_write_bytes(CONFIG_ESP_CONSOLE_UART_NUM, (const char*)test_str, strlen(test_str));
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        u16 position = 600;
+        uint64_t min_timing = 1000000;
+        uint64_t max_timing = 0;
+        float mean_timing = 0.0f;
+
+        for(;;)
+        {
+            //static char const * test_str = "This is a test string.\n";
+            //uart_write_bytes(CONFIG_ESP_CONSOLE_UART_NUM, (const char*)test_str, strlen(test_str));
+            vTaskDelay(500 / portTICK_PERIOD_MS);
+
+            uint64_t start_time = esp_timer_get_time();
+            servo.setPosition(2,position);
+            //servo.setPositionFast(2,position);
+            
+            uint64_t end_time = esp_timer_get_time();
+            uint64_t  timing = end_time-start_time;
+            min_timing = timing < min_timing ? timing : min_timing;
+            max_timing = timing > max_timing ? timing : max_timing;
+            mean_timing = 0.1f * timing + 0.9f * mean_timing;
+            //ESP_LOGI(TAG, "Time: %llu microseconds", end_time-start_time);       
+            static char log_str[80];
+            sprintf(log_str, "Time: %lluus < %.0fus < %lluus\r\n",min_timing,mean_timing,max_timing);       
+            uart_write_bytes(CONFIG_ESP_CONSOLE_UART_NUM, (const char*)log_str, strlen(log_str));
+        }
     }
+
+    // PERFTEST #1 : one servo timing
+    // Results setPosition12    : Time: 844us < 880us < 1075us
+    if(true)
+    {
+        uint64_t min_timing = 1000000;
+        uint64_t max_timing = 0;
+        float mean_timing = 0.0f;
+        u8 servoIDs[] {1,2,3,4,5,6,7,8,9,10,11,12};
+        u16 position = 600;
+        u16 servoPositions[] {position,position,position,position,position,position,position,position,position,position,position,position};
+
+        for(;;)
+        {
+            //static char const * test_str = "This is a test string.\n";
+            //uart_write_bytes(CONFIG_ESP_CONSOLE_UART_NUM, (const char*)test_str, strlen(test_str));
+            vTaskDelay(500 / portTICK_PERIOD_MS);
+
+            uint64_t start_time = esp_timer_get_time();
+            servo.setPosition12(servoIDs,servoPositions);
+            
+            uint64_t end_time = esp_timer_get_time();
+            uint64_t  timing = end_time-start_time;
+            min_timing = timing < min_timing ? timing : min_timing;
+            max_timing = timing > max_timing ? timing : max_timing;
+            mean_timing = 0.1f * timing + 0.9f * mean_timing;
+            //ESP_LOGI(TAG, "Time: %llu microseconds", end_time-start_time);       
+            static char log_str[80];
+            sprintf(log_str, "Time: %lluus < %.0fus < %lluus\r\n",min_timing,mean_timing,max_timing);       
+            uart_write_bytes(CONFIG_ESP_CONSOLE_UART_NUM, (const char*)log_str, strlen(log_str));
+        }
+    }
+
+
+
+
+
+
 
 
     // TODO : test send pos+vel timing at 500kbps, with and w/o ring buffer
@@ -144,6 +222,11 @@ extern "C" void app_main(void)
     // TODO : communication about frequency (>200Hz)
 
     // TODO : rendre configurable la priode de récupération du feedback
+
+
+    // Pat92fr
+    // Pat92fr
+    // Pat92fr
 
 
 }
