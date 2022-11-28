@@ -110,11 +110,11 @@ int SERVO::setPosition(u8 servoID, u16 position, u16 speed) {
 
 int SERVO::setPositionFast(u8 servoID, u16 servoPosition)
 {
-    u8 const buffer[] {
+    u8 buffer[] {
         (u8)(servoPosition>>8),
         (u8)(servoPosition&0xff)
     };
-    return genWrite(servoID, SCSCL_GOAL_POSITION_L, buffer, 2);
+    return genWrite(servoID, SCSCL_GOAL_POSITION_L,buffer,2);
 }
 
 void SERVO::setPosition12(u8 const servoIDs[], u16 const servoPositions[])
