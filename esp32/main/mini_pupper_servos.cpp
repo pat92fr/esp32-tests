@@ -111,8 +111,8 @@ int SERVO::setPosition(u8 servoID, u16 position, u16 speed) {
 int SERVO::setPositionFast(u8 servoID, u16 servoPosition)
 {
     u8 buffer[] {
-        servoPosition>>8,
-        servoPosition&0xff
+        (u8)(servoPosition>>8),
+        (u8)(servoPosition&0xff)
     };
     return genWrite(servoID, SCSCL_GOAL_POSITION_L, buffer, 2);
 }

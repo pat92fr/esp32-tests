@@ -469,6 +469,56 @@ static void register_servo_cmd_setPosition(void)
     ESP_ERROR_CHECK( esp_console_cmd_register(&cmd_servo_setPosition) );
 }
 
+
+static struct {
+    struct arg_int *servo_pos;
+    struct arg_end *end;
+} servo_pos12_args;
+
+
+static int servo_cmd_setPosition12(int argc, char **argv)
+{
+    int nerrors = arg_parse(argc, argv, (void **)&servo_pos12_args);
+    if (nerrors != 0) {
+        arg_print_errors(stderr, servo_pos12_args.end, argv[0]);
+        return 0;
+    }
+
+    printf("Servo positions: ");
+    for(size_t index=0;index<12;++index)
+    {
+        printf("ID%d:%d ",index+1,servo_pos12_args.servo_pos->ival[index]);
+    }
+    printf(".\r\n\r\n");
+
+    static u8 servoIDs[] {1,2,3,4,5,6,7,8,9,10,11,12};
+    static u16 servoPositions[12] {0};
+    for(size_t index=0;index<12;++index)
+    {
+        int const value = servo_pos12_args.servo_pos->ival[index];
+        if(0<=value && value<1024)
+            servoPositions[index]=static_cast<u16>(servo_pos12_args.servo_pos->ival[index]);
+        else
+            servoPositions[index]=512; // neutral
+    }
+    servo.setPosition12(servoIDs,servoPositions);
+    return 0;
+}
+
+static void register_servo_cmd_setPosition12(void)
+{
+    servo_pos12_args.servo_pos = arg_intn(NULL, "pos", "<n>", 12, 12,"Servo Position (x12)");
+    servo_pos12_args.end = arg_end(2);
+    const esp_console_cmd_t cmd_servo_setPosition12 = {
+        .command = "servo-setPosition12",
+        .help = "rotate ALL servos to a given position",
+        .hint = "--pos <position array>",
+        .func = &servo_cmd_setPosition12,
+    .argtable = NULL
+    };
+    ESP_ERROR_CHECK( esp_console_cmd_register(&cmd_servo_setPosition12) );
+}
+
 static struct {
     struct arg_int *servo_id;
     struct arg_int *servo_newid;
@@ -868,6 +918,7 @@ void register_servo_cmds(void)
     register_servo_cmd_setMidPos();
     register_servo_cmd_setEndPos();
     register_servo_cmd_setPosition();
+    register_servo_cmd_setPosition12();
     register_servo_cmd_setID();
     register_servo_cmd_FeedBack();
     register_servo_cmd_ReadPos();

@@ -127,9 +127,10 @@ extern "C" void app_main(void)
 #endif
 
 
-    //ESP_ERROR_CHECK(esp_console_start_repl(repl));
+    if(true)
+        ESP_ERROR_CHECK(esp_console_start_repl(repl));
 
-
+/*
 
     // Pat92fr
     // Pat92fr
@@ -205,7 +206,7 @@ extern "C" void app_main(void)
 
 
 
-
+*/
 
 
 
