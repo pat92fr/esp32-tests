@@ -108,11 +108,13 @@ int SERVO::setPosition(u8 servoID, u16 position, u16 speed) {
     return 999; //too many retries
 }
 
-int SERVO::setPositionFast(u8 servoID, u16 position)
+int SERVO::setPositionFast(u8 servoID, u16 servoPosition)
 {
-    u8 bBuf[2] {0};
-    Host2SCS(bBuf+0, bBuf+1, position);
-    return genWrite(servoID, SCSCL_GOAL_POSITION_L, bBuf, 2);
+    u8 buffer[] {
+        servoPosition>>8,
+        servoPosition&0xff
+    };
+    return genWrite(servoID, SCSCL_GOAL_POSITION_L, buffer, 2);
 }
 
 void SERVO::setPosition12(u8 const servoIDs[], u16 const servoPositions[])
