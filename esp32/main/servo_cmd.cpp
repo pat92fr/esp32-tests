@@ -491,7 +491,7 @@ static int servo_cmd_setPosition12(int argc, char **argv)
     }
     printf(".\r\n\r\n");
 
-    static u8 servoIDs[] {1,2,3,4,5,6,7,8,9,10,11,12};
+    static u8 const servoIDs[] {1,2,3,4,5,6,7,8,9,10,11,12};
     static u16 servoPositions[12] {0};
     for(size_t index=0;index<12;++index)
     {
