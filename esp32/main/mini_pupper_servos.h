@@ -3,7 +3,17 @@
 #ifndef _mini_pupper_servos_H
 #define _mini_pupper_servos_H
 
+struct SERVO_STATE
+{
+    SERVO_STATE(u8 id) : ID(id) {}
 
+    u8 ID                   = 0;
+    u8 torque_switch        = 0;
+    u16 goal_position       = 512; // middle position
+    u16 present_position    = 0;
+    s16 present_velocity    = 0;
+    s16 present_load        = 0;
+};
 
 class SERVO : public SCSCL
 {
@@ -25,6 +35,8 @@ public:
 
     bool isEnabled; 
     bool isTorqueEnabled; 
+
+    SERVO_STATE state[12] {1,2,3,4,5,6,7,8,9,10,11,12};
 };
 
 #endif
