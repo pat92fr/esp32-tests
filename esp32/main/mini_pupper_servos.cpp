@@ -6,6 +6,20 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+void SERVO_TASK(void * parameters)
+{
+    SERVO * servo = reinterpret_cast<SERVO*>(parameters);
+    vTaskDelay(100 / portTICK_PERIOD_MS);
+    for(;;)
+    {
+        if(servo->isEnabled && servo->isRunning)
+        {
+            servo->sync_goal_position();
+        }
+        vTaskDelay(0.2 / portTICK_PERIOD_MS);
+    }
+}
+
 static const char *TAG = "MINIPUPPERSERVOS";
 
 // number of retries for servo functions
@@ -40,6 +54,18 @@ SERVO::SERVO() {
     this->disable();
     this->disableTorque();
 
+    /*** ASYNC API Work In Progress ***/
+
+    xTaskCreate(
+        SERVO_TASK,                 /* Function that implements the task. */
+        "SERVO BUS SERVICE",        /* Text name for the task. */
+        10000,                      /* Stack size in words, not bytes. */
+        (void*)this,                /* Parameter passed into the task. */
+        tskIDLE_PRIORITY,           /* Priority at which the task is created. */
+        &task_handle                /* Used to pass out the created task's handle. */
+    );
+
+    /*** ASYNC API Work In Progress ***/
 }
 
 void SERVO::disable() {
@@ -149,7 +175,40 @@ void SERVO::setPosition12(u8 const servoIDs[], u16 const servoPositions[])
     buffer[index++] = ~chk_sum;
     // send frame to uart
     writeSCS(buffer,buffer_size);
-    wFlushSCS();
+    //////uart_write_bytes(uart_port_num, nDat, nLen);
+}
+
+void SERVO::sync_goal_position()
+{
+    static size_t const L {2};                      // Length of data sent to each servo
+    static size_t const N {12};                     // Servo Number
+    static size_t const Length {(L+1)*N+4};         // Length field value
+    static size_t const buffer_size {2+1+1+Length}; // 0xFF 0xFF ID LENGTH (INSTR PARAM... CHK)
+    // prepare frame header and parameters (fixed)
+    static u8 buffer[buffer_size] {
+        0xFF,                                       // Start of Frame
+        0xFF,                                       // Start of Frame
+        0xFE,                                       // ID
+        Length,                                     // Length
+        INST_SYNC_WRITE,                            // Instruction
+        SCSCL_GOAL_POSITION_L,                      // Parameter 1 : Register address
+        L                                           // Parameter 2 : L
+    };
+    // build frame payload
+    size_t index {7};
+    for(size_t servo_index=0; servo_index<N; ++servo_index) {
+        buffer[index++] = state[servo_index].ID;                    // Parameter 3 = Servo Number
+        buffer[index++] = (state[servo_index].goal_position>>8);    // Write the first data of the first servo
+        buffer[index++] = (state[servo_index].goal_position&0xff);
+    }
+    // compute checksum
+    u8 chk_sum {0};
+    for(size_t chk_index=2; chk_index<(buffer_size-1); ++chk_index) {
+        chk_sum += buffer[chk_index];
+    }
+    buffer[index++] = ~chk_sum;
+    // send frame to uart    
+    uart_write_bytes(uart_port_num,buffer,buffer_size);
 }
 
 bool SERVO::checkPosition(u8 servoID, u16 position, int accuracy = 5) {

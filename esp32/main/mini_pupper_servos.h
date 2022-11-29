@@ -1,5 +1,8 @@
 #include "SCSCL.h"
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+
 #ifndef _mini_pupper_servos_H
 #define _mini_pupper_servos_H
 
@@ -14,6 +17,8 @@ struct SERVO_STATE
     s16 present_velocity    = 0;
     s16 present_load        = 0;
 };
+
+void SERVO_TASK(void * parameters);
 
 class SERVO : public SCSCL
 {
@@ -36,7 +41,25 @@ public:
     bool isEnabled; 
     bool isTorqueEnabled; 
 
-    SERVO_STATE state[12] {1,2,3,4,5,6,7,8,9,10,11,12};
+    /*** ASYNC API Work In Progress ***/
+
+    // state of all servo
+    SERVO_STATE state[12] {1,2,3,4,5,6,7,8,9,10,11,12};                     // hard-coded ID list
+
+    // accessers of servo state
+    void setPositionAsync(u8 servoID, u16 servoPosition);
+    u16  getPositionAsync(u8 servoID);
+    u16  getVelocityAsync(u8 servoID);
+    u16  getLoadAsync(u8 servoID);
+
+    // internals
+    void sync_goal_position();
+
+    // background servo bus service
+    bool isRunning = true;
+    TaskHandle_t task_handle = NULL;
+
+    /*** ASYNC API Work In Progress ***/
 };
 
 #endif
