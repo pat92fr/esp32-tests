@@ -14,8 +14,8 @@ struct SERVO_STATE
     u8 torque_switch        = 0;
     u16 goal_position       = 512; // middle position
     u16 present_position    = 0;
-    s16 present_velocity    = 0;
-    s16 present_load        = 0;
+    u16 present_velocity    = 0;
+    u16 present_load        = 0;
 };
 
 void SERVO_TASK(void * parameters);
@@ -53,7 +53,9 @@ public:
     u16  getLoadAsync(u8 servoID);
 
     // internals
-    void sync_goal_position();
+    void sync_all_goal_position();
+    void cmd_feedback_one_servo(SERVO_STATE & servoState);
+    void ack_feedback_one_servo(SERVO_STATE & servoState);
 
     // background servo bus service
     bool isRunning = true;

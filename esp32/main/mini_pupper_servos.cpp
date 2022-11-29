@@ -13,12 +13,27 @@
 void SERVO_TASK(void * parameters)
 {
     SERVO * servo = reinterpret_cast<SERVO*>(parameters);
-    vTaskDelay(100 / portTICK_PERIOD_MS);
+    u8 servoID {0};
+    unsigned int counter {0};
     for(;;)
     {
+        /*
+        ++counter;
+        if((counter%250)==0)
+        {
+            printf(" pos:%d pos:%d \r\n",
+                servo->state[1].present_position,
+                servo->state[1].present_load
+            );
+        }
+        */
         if(servo->isEnabled && servo->isRunning)
         {
-            servo->sync_goal_position();
+            // interleave sync write (setpoints) and read/ack (present feedback)
+            servo->ack_feedback_one_servo(servo->state[servoID]);
+            servo->sync_all_goal_position();
+            servoID = (servoID+1)%12;           // basic round robin algorithm
+            servo->cmd_feedback_one_servo(servo->state[servoID]);
         }
         vTaskDelay(1 / portTICK_PERIOD_MS);
     }
@@ -182,7 +197,7 @@ void SERVO::setPosition12(u8 const servoIDs[], u16 const servoPositions[])
     //////uart_write_bytes(uart_port_num, nDat, nLen);
 }
 
-void SERVO::sync_goal_position()
+void SERVO::sync_all_goal_position()
 {
     static size_t const L {2};                      // Length of data sent to each servo
     static size_t const N {12};                     // Servo Number
@@ -213,6 +228,64 @@ void SERVO::sync_goal_position()
     buffer[index++] = ~chk_sum;
     // send frame to uart    
     uart_write_bytes(uart_port_num,buffer,buffer_size);
+}
+
+void SERVO::cmd_feedback_one_servo(SERVO_STATE & servoState)
+{
+    static size_t const buffer_size {8};            
+    u8 buffer[buffer_size] {
+        0xFF,                                       // Start of Frame
+        0xFF,                                       // Start of Frame
+        servoState.ID,                              // ID
+        0x04,                                       // Length of read instruction
+        INST_READ,                                  // Read instruction
+        SCSCL_PRESENT_POSITION_L,                   // Parameter 1 : Register address
+        0x06,                                       // Parameter 2 : 6 bytes (position, speed, load)
+        0x00                                        // checksum
+    };
+    // compute checksum
+    u8 chk_sum {0};
+    for(size_t chk_index=2; chk_index<(buffer_size-1); ++chk_index) {
+        chk_sum += buffer[chk_index];
+    }
+    buffer[buffer_size-1] = ~chk_sum;
+    // send frame to uart
+    uart_write_bytes(uart_port_num,buffer,buffer_size);
+    // flush RX FIFO
+    uart_flush(uart_port_num);
+}
+
+void SERVO::ack_feedback_one_servo(SERVO_STATE & servoState)
+{
+    static size_t const buffer_size {12};     
+    u8 buffer[buffer_size] {0};
+    int const read_length = uart_read_bytes(uart_port_num,buffer,buffer_size,1);
+    if(read_length==buffer_size)
+    {
+        if( buffer[0] == 0xFF &&             // Start of Frame
+            buffer[1] == 0xFF &&             // Start of Frame
+            buffer[2] == servoState.ID &&    // ID
+            buffer[3] == 0x08 &&             // Length of read reply
+            buffer[4] == 0x00                // Length of working condition
+        )
+        {
+            // compute checksum
+            u8 chk_sum {0};
+            for(size_t chk_index=2; chk_index<(buffer_size-1); ++chk_index) {
+                chk_sum += buffer[chk_index];
+            }   
+            // check checksum
+            if(buffer[buffer_size-1]==(u8)(~chk_sum))
+            {
+                // decode data frame returned
+                servoState.present_position = (u16)(buffer[5])<<8 | buffer[6];
+                servoState.present_velocity = (u16)(buffer[7])<<8 | buffer[8];
+                servoState.present_load =     (u16)(buffer[9])<<8 | buffer[10];
+            }
+        }
+    }
+    // flush RX FIFO
+    uart_flush(uart_port_num); 
 }
 
 bool SERVO::checkPosition(u8 servoID, u16 position, int accuracy = 5) {
