@@ -6,6 +6,10 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+// MENUCONFIG > COMPONENTS > FREERTOS > KERNEL > 1000Hz
+// MENUCONFIG > COMPONENTS > FREERTOS > KERNEL > 1000Hz
+// MENUCONFIG > COMPONENTS > FREERTOS > KERNEL > 1000Hz
+
 void SERVO_TASK(void * parameters)
 {
     SERVO * servo = reinterpret_cast<SERVO*>(parameters);
@@ -16,7 +20,7 @@ void SERVO_TASK(void * parameters)
         {
             servo->sync_goal_position();
         }
-        vTaskDelay(0.2 / portTICK_PERIOD_MS);
+        vTaskDelay(1 / portTICK_PERIOD_MS);
     }
 }
 
