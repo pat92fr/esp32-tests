@@ -62,6 +62,8 @@ public:
      */
 
     void setPositionAsync(u8 servoID, u16 servoPosition);
+    void setPosition12Async(u16 const servoPositions[]);    
+    
     u16  getPositionAsync(u8 servoID);
     u16  getVelocityAsync(u8 servoID);
     u16  getLoadAsync(u8 servoID);

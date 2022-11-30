@@ -998,6 +998,40 @@ static void register_servo_cmd_setPositionAsync(void)
     ESP_ERROR_CHECK( esp_console_cmd_register(&cmd_servo_setPosition) );
 }
 
+
+static int servo_cmd_setPosition12Async(int argc, char **argv)
+{
+    int nerrors = arg_parse(argc, argv, (void **)&servo_pos12_args);
+    if (nerrors != 0) {
+        arg_print_errors(stderr, servo_pos_args.end, argv[0]);
+        return 0;
+    }
+    static u16 servoPositions[12] {0};
+    for(size_t index=0;index<12;++index) {
+        int const & value = servo_pos12_args.servo_pos12->ival[index];
+        if(0<=value && value<1024)
+            servoPositions[index]=static_cast<u16>(value);
+        else
+            servoPositions[index]=512;
+    }
+    servo.setPosition12Async(servoPositions);
+    return 0;
+}
+
+static void register_servo_cmd_setPosition12Async(void)
+{
+    servo_pos12_args.servo_pos12 = arg_intn(NULL,NULL,"<pos>",12,12,"Servo position array (x12)");
+    servo_pos12_args.end = arg_end(1);
+    const esp_console_cmd_t cmd_servo_setPosition12 = {
+        .command = "servo-setPos12Async",
+        .help = "rotate the servos to a given position",
+        .hint = "<pos> (x12)",
+        .func = &servo_cmd_setPosition12Async,
+        .argtable = &servo_pos12_args
+    };
+    ESP_ERROR_CHECK( esp_console_cmd_register(&cmd_servo_setPosition12) );
+}
+
 static int servo_cmd_ReadPosAsync(int argc, char **argv)
 {
     int nerrors = arg_parse(argc, argv, (void **)&servo_id_args);
@@ -1134,6 +1168,7 @@ void register_servo_cmds(void)
     register_servo_cmd_ReadCurrent();
 
     register_servo_cmd_setPositionAsync();
+    register_servo_cmd_setPosition12Async();
     register_servo_cmd_ReadPosAsync();
     register_servo_cmd_ReadVelAsync();
     register_servo_cmd_ReadLoadAsync();

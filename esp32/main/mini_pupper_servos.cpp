@@ -287,6 +287,14 @@ void SERVO::setPositionAsync(u8 servoID, u16 servoPosition)
     isSyncRunning = true;
 }
 
+void SERVO::setPosition12Async(u16 const servoPositions[])
+{
+    for(size_t index=0;index<12;++index)
+        state[index].goal_position = servoPositions[index];
+    // start sync task to enable synchronization from local setpoint database to servo
+    isSyncRunning = true;    
+}
+
 u16  SERVO::getPositionAsync(u8 servoID)
 {
     // start sync task and wait a moment to synchronise local feedback data base
