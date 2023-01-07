@@ -20,7 +20,9 @@ static char const * TAG {"SERVOS"};
 
 SERVO servo;
 
-SERVO::SERVO()
+SERVO::SERVO() :
+_task_handle(NULL),
+_uart_queue(NULL)
 {
     // setup enable pin
     gpio_config_t io_conf;
@@ -47,10 +49,11 @@ SERVO::SERVO()
 #elif SOC_UART_SUPPORT_XTAL_CLK
     uart_config.source_clk = UART_SCLK_XTAL;
 #endif
-    uart_port_num = UART_NUM_1;
-    ESP_ERROR_CHECK(uart_driver_install(uart_port_num, 1024, 1024, 0, NULL, 0));
-    ESP_ERROR_CHECK(uart_param_config(uart_port_num, &uart_config));
-    ESP_ERROR_CHECK(uart_set_pin(uart_port_num, 4, 5, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+    _uart_port_num = UART_NUM_1;
+    //ESP_ERROR_CHECK(uart_driver_install(uart_port_num, 1024, 1024, 0, NULL, 0));
+    ESP_ERROR_CHECK(uart_driver_install(_uart_port_num, 1024, 1024, 40, &_uart_queue, 0));
+    ESP_ERROR_CHECK(uart_param_config(_uart_port_num, &uart_config));
+    ESP_ERROR_CHECK(uart_set_pin(_uart_port_num, 4, 5, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
 }
 
 static size_t const stack_size = 10000;
@@ -507,7 +510,7 @@ void SERVO::set_position_all(u16 const servoPositions[])
     }
     buffer[index++] = ~chk_sum;
     // send frame to uart
-    uart_write_bytes(uart_port_num, buffer, buffer_size);
+    uart_write_bytes(_uart_port_num, buffer, buffer_size);
 }
 
 int SERVO::setID(u8 servoID, u8 newID)
@@ -698,7 +701,7 @@ void SERVO::enable_service(bool enable)
         vTaskDelay(10 / portTICK_PERIOD_MS);
     }
     // flush RX FIFO
-    uart_flush(uart_port_num);    
+    uart_flush(_uart_port_num);    
 }
 
 void SERVO::sync_all_goal_position()
@@ -740,7 +743,7 @@ void SERVO::sync_all_goal_position()
         }
         buffer[index++] = ~chk_sum;
         // send frame to all servo    
-        uart_write_bytes(uart_port_num,buffer,index);
+        uart_write_bytes(_uart_port_num,buffer,index);
     }
     /*
      * Second sync write frame : goal position
@@ -777,7 +780,7 @@ void SERVO::sync_all_goal_position()
         }
         buffer[index++] = ~chk_sum;
         // send frame to all servo    
-        uart_write_bytes(uart_port_num,buffer,index);
+        uart_write_bytes(_uart_port_num,buffer,index);
     }
 }
 
@@ -802,9 +805,9 @@ void SERVO::cmd_feedback_one_servo(SERVO_STATE & servoState)
     }
     buffer[buffer_size-1] = ~chk_sum;
     // send frame to servo
-    uart_write_bytes(uart_port_num,buffer,buffer_size);
+    uart_write_bytes(_uart_port_num,buffer,buffer_size);
     // flush RX FIFO
-    uart_flush(uart_port_num);
+    uart_flush(_uart_port_num);
 }
 
 void SERVO::ack_feedback_one_servo(SERVO_STATE & servoState)
@@ -813,7 +816,7 @@ void SERVO::ack_feedback_one_servo(SERVO_STATE & servoState)
     static size_t const buffer_size {12};     
     u8 buffer[buffer_size] {0};
     // copy RX fifo into local buffer
-    int const read_length = uart_read_bytes(uart_port_num,buffer,buffer_size,1);
+    int const read_length = uart_read_bytes(_uart_port_num,buffer,buffer_size,1);
     // check expected frame size
     if(read_length==buffer_size)
     {
@@ -876,19 +879,73 @@ void SERVO::ack_feedback_one_servo(SERVO_STATE & servoState)
         f_monitor.update(mini_pupper::frame_error_rate_monitor::TIME_OUT_ERROR);
     }    
     // flush RX FIFO
-    uart_flush(uart_port_num); 
+    uart_flush(_uart_port_num); 
 }
 
 void SERVO_TASK(void * parameters)
 {
     SERVO * servo = reinterpret_cast<SERVO*>(parameters);
     u8 servoID {0};
+    uart_event_t event;
     for(;;)
     {
         if(servo->_is_power_enabled && servo->_is_service_enabled)
         {
-            // process read ack from one servo
-            servo->ack_feedback_one_servo(servo->state[servoID]);
+            // Waiting for UART event.
+            if(xQueueReceive(servo->_uart_queue,(void*)&event,3/portTICK_PERIOD_MS))
+            {
+                switch(event.type)
+                {
+                // Event of UART receving data
+                case UART_DATA:
+                    {
+                        if(event.size!=12)
+                            ESP_LOGI(TAG, "%d", event.size);
+                        // process read ack from one servo
+                        servo->ack_feedback_one_servo(servo->state[servoID]);
+                    }
+                    break;
+
+                // Event of HW FIFO overflow detected
+                case UART_FIFO_OVF:
+                    ESP_LOGI(TAG, "hw fifo overflow");
+                    // If fifo overflow happened, you should consider adding flow control for your application.
+                    // The ISR has already reset the rx FIFO,
+                    // As an example, we directly flush the rx buffer here in order to read more data.
+                    uart_flush_input(servo->_uart_port_num);
+                    xQueueReset(servo->_uart_queue);
+                    break;
+
+                // Event of UART ring buffer full
+                case UART_BUFFER_FULL:
+                    ESP_LOGI(TAG, "ring buffer full");
+                    // If buffer full happened, you should consider encreasing your buffer size
+                    // As an example, we directly flush the rx buffer here in order to read more data.
+                    uart_flush_input(servo->_uart_port_num);
+                    xQueueReset(servo->_uart_queue);
+                    break;
+
+                case UART_PARITY_ERR:
+                    ESP_LOGI(TAG, "uart parity error");
+                    break;
+
+                // Event of UART frame error
+                case UART_FRAME_ERR:
+                    ESP_LOGI(TAG, "uart frame error");
+                    break;
+
+                // Others
+                default:
+                    ESP_LOGI(TAG, "uart event type: %d", event.type);
+                    break;       
+
+                }
+            }
+            else
+            {
+                 // log
+                ESP_LOGI(TAG, "TO");
+            }
             // sync write setpoint to all servo
             servo->sync_all_goal_position();
             // basic round robin algorithm for feedback
@@ -900,10 +957,12 @@ void SERVO_TASK(void * parameters)
             servo->p_monitor.update();
 
         }
+        else
+            vTaskDelay(2 / portTICK_PERIOD_MS);
         // delay 1ms
         // - about 1KHz refresh frequency for sync write servo setpoints
         // - about 80Hz refresh frequency for read/ack servo feedbacks
-        vTaskDelay(2 / portTICK_PERIOD_MS);
+        //vTaskDelay(2 / portTICK_PERIOD_MS);
 
     }
 }
@@ -943,9 +1002,9 @@ int SERVO::write_frame(u8 ID, u8 instruction, u8 const * parameters, size_t para
     }
     buffer[buffer_size-1] = ~chk_sum;
     // flush RX FIFO
-    uart_flush(uart_port_num);  
+    uart_flush(_uart_port_num);  
     // send frame to servo
-    uart_write_bytes(uart_port_num,buffer,buffer_size);
+    uart_write_bytes(_uart_port_num,buffer,buffer_size);
 
     return SERVO_STATUS_OK;
 }
@@ -958,9 +1017,9 @@ int SERVO::reply_frame(u8 & ID, u8 & state, u8 * parameters, size_t parameter_le
     size_t const buffer_size {2+1+1+length};        // 0xFF 0xFF ID LENGTH (STATE PARAM... CHK)    
     u8 buffer[buffer_size] {0};
     // copy RX fifo into local buffer
-    int const read_length = uart_read_bytes(uart_port_num,buffer,buffer_size,2);
+    int const read_length = uart_read_bytes(_uart_port_num,buffer,buffer_size,2);
     // flush RX FIFO
-    uart_flush(uart_port_num);    
+    uart_flush(_uart_port_num);    
     // check expected frame size
     ///printf("   buffer_size:%d read_length:%d.",buffer_size,read_length);
     if(read_length!=buffer_size) return SERVO_STATUS_FAIL;

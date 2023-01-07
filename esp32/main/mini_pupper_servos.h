@@ -74,6 +74,7 @@
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include "freertos/queue.h"
 
 /* IMPORTANT : Mini Pupper Servo API requires to setup FreeRTOS frequency at 1000Hz.
  *             Use IDF ESP32 : MENUCONFIG > COMPONENTS > FREERTOS > KERNEL > 1000Hz
@@ -278,6 +279,7 @@ protected:
     // background servo bus service
     bool _is_service_enabled {false};
     TaskHandle_t _task_handle {NULL};
+    QueueHandle_t _uart_queue {NULL};    
     friend void SERVO_TASK(void * parameters);
 
     /* LOW LEVEL helpers
@@ -296,7 +298,7 @@ protected:
 
     int check_reply_frame_no_parameter(u8 & ID);
 
-    int uart_port_num {1};
+    int _uart_port_num {1};
 
     // calibration helpers
     u16 raw_to_calibrated_position(u16 raw_position, s16 calibration_offset) const;
